@@ -13,15 +13,13 @@ If omitted, it is determined automatically based on the number of objectives. If
 # candidates_func
 以下の`candidates_func`を実装
 - Single Objective
-    - TPE
     - EI
     - LogEI
     - LCB
     - SAASBO + EI
 - Multi Objective
-    - MOTPE
-    - EHVI
-    - LogEHVI
+    - ~~EHVI~~
+    - ~~LogEHVI~~
 
 # Remarks
 - Use BoTorch==0.12.0
@@ -30,3 +28,14 @@ If omitted, it is determined automatically based on the number of objectives. If
 - SAASBOはfittingにNUTS Samplerを利用しており，計算量がO(N^3)なので実行速度が遅い．
 
 # Sample
+Build image
+```bash
+$ docker compose up --build
+```
+Run experiment
+```
+$ Python main.py
+
+2%|██████▌ 
+```
+
