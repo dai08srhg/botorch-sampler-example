@@ -8,6 +8,7 @@ from botorch.models import SingleTaskGP
 from botorch.models.model import Model
 from botorch.models.transforms.outcome import Standardize
 from botorch.models.fully_bayesian import SaasFullyBayesianSingleTaskGP
+from botorch.models.utils.gpytorch_modules import get_matern_kernel_with_gamma_prior
 from botorch.acquisition.monte_carlo import qExpectedImprovement
 from botorch.acquisition.analytic import ExpectedImprovement, LogExpectedImprovement
 from botorch.acquisition.logei import qLogExpectedImprovement
@@ -72,7 +73,6 @@ def ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pendin
                                   },
                                   sequential=True)
     candidates = unnormalize(candidates.detach(), bounds=bounds)
-
     return candidates
 
 
@@ -107,6 +107,74 @@ def log_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pe
                                   sequential=True)
     candidates = unnormalize(candidates.detach(), bounds=bounds)
 
+    return candidates
+
+
+def ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
+    """
+    v0.11.0以前のMaternKernelのlengthscaleにGamma分布を用いたEI
+    """
+    train_x = normalize(train_x, bounds=bounds)
+    covar_module = get_matern_kernel_with_gamma_prior(ard_num_dims=train_x.shape[-1])
+    model = SingleTaskGP(train_x,
+                         train_obj,
+                         outcome_transform=Standardize(m=train_obj.size(-1)),
+                         covar_module=covar_module)
+
+    mll = ExactMarginalLogLikelihood(model.likelihood, model)
+    fit_gpytorch_mll(mll)
+
+    sampler = SobolQMCNormalSampler(sample_shape=torch.Size([128]))
+    acq_func = qExpectedImprovement(model=model, best_f=train_obj.max(), sampler=sampler)
+
+    standard_bounds = torch.zeros_like(bounds)
+    standard_bounds[1] = 1
+
+    candidates, _ = optimize_acqf(acq_function=acq_func,
+                                  bounds=standard_bounds,
+                                  q=1,
+                                  num_restarts=10,
+                                  raw_samples=512,
+                                  options={
+                                      "batch_limit": 5,
+                                      "maxiter": 200
+                                  },
+                                  sequential=True)
+    candidates = unnormalize(candidates.detach(), bounds=bounds)
+    return candidates
+
+
+def log_ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
+    """
+    v0.11.0以前のMaternKernelのlengthscaleにGamma分布を用いたEI
+    """
+    train_x = normalize(train_x, bounds=bounds)
+    covar_module = get_matern_kernel_with_gamma_prior(ard_num_dims=train_x.shape[-1])
+    model = SingleTaskGP(train_x,
+                         train_obj,
+                         outcome_transform=Standardize(m=train_obj.size(-1)),
+                         covar_module=covar_module)
+
+    mll = ExactMarginalLogLikelihood(model.likelihood, model)
+    fit_gpytorch_mll(mll)
+
+    sampler = SobolQMCNormalSampler(sample_shape=torch.Size([128]))
+    acq_func = qLogExpectedImprovement(model=model, best_f=train_obj.max(), sampler=sampler)
+
+    standard_bounds = torch.zeros_like(bounds)
+    standard_bounds[1] = 1
+
+    candidates, _ = optimize_acqf(acq_function=acq_func,
+                                  bounds=standard_bounds,
+                                  q=1,
+                                  num_restarts=10,
+                                  raw_samples=512,
+                                  options={
+                                      "batch_limit": 5,
+                                      "maxiter": 200
+                                  },
+                                  sequential=True)
+    candidates = unnormalize(candidates.detach(), bounds=bounds)
     return candidates
 
 

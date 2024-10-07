@@ -18,19 +18,19 @@ def get_best_ys(ys):
 
 
 if __name__ == '__main__':
-    exp_name = 'StyblinskiTang40'
+    exp_name = 'Hartmann6Cat2'
 
     col2best_ys = {}
 
     # 全施行プロット
-    fig = plt.figure(figsize=(25, 8))
+    fig = plt.figure(figsize=(22, 12))
     fig.suptitle(f'{exp_name}')
     for j in range(1, 11):
         df = pl.read_csv(f'exp_result/{exp_name}/run_{j}.csv')
         for col in df.columns:
             ys = df[col].to_list()
             ys = ys[9:]
-            plt.subplot(2, 5, j)
+            plt.subplot(3, 4, j)
             plt.scatter(range(len(ys)), ys, marker='.', label=f'{col}')
 
             best_ys = get_best_ys(ys)
@@ -52,6 +52,7 @@ if __name__ == '__main__':
         performance = np.mean(performance, axis=0)
 
         plt.plot(range(len(performance)), performance, label=f'{col}(best)')
+    plt.ylabel('best_f')
     plt.legend(loc='upper right')
     plt.tight_layout()
     plt.savefig(f'exp_result/{exp_name}/{exp_name}_performance.png')

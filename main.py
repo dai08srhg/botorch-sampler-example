@@ -4,18 +4,23 @@ import optuna
 from enum import Enum
 from tqdm import tqdm
 import polars as pl
-from test_functions.single_objective import Hartmann6, StyblinskiTang, FiveWellPotentioal
-from candidates_funcs.single_objective_candidates_func import ei, log_ei, lcb, saas_ei
+from test_functions.single_objective import Hartmann6, StyblinskiTang, FiveWellPotentioal, Hartmann6Cat2
+from candidates_funcs.single_objective_candidates_func import (ei, log_ei, lcb, saas_ei, ei_gammma_prior,
+                                                               log_ei_gammma_prior)
+
+TargetFunction = Hartmann6 | StyblinskiTang | FiveWellPotentioal
 
 
 class SamplerName(str, Enum):
     """
     最適化バージョン
     """
-    TPE = 'tpe'
-    LCB = 'lcb'
-    EI = 'ei'
-    LogEI = 'log_ei'
+    TPE = 'TPE'
+    EIGammaPrior = 'EI with GammaPrior'
+    LogEIGammaPrior = 'LogEI with GammaPrior'
+    EI = 'EI'
+    LogEI = 'LogEI'
+    LCB = 'LCB'
     SaasEI = 'SAAS+EI'
 
 
@@ -26,6 +31,10 @@ class Optimizer:
             self.sampler = optuna.samplers.TPESampler()
         elif sampler_name == SamplerName.LCB:
             self.sampler = optuna.integration.BoTorchSampler(candidates_func=lcb)
+        elif sampler_name == SamplerName.EIGammaPrior:
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=ei_gammma_prior)
+        elif sampler_name == SamplerName.LogEIGammaPrior:
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=log_ei_gammma_prior)
         elif sampler_name == SamplerName.EI:
             self.sampler = optuna.integration.BoTorchSampler(candidates_func=ei)
         elif sampler_name == SamplerName.LogEI:
@@ -76,100 +85,77 @@ class Optimizer:
         return new_X.reshape(1, new_X.shape[0])
 
 
+def run_optimization(func: TargetFunction,
+                     X_init: np.ndarray,
+                     y_init: np.ndarray,
+                     sampler_name: SamplerName,
+                     iters: int = 100):
+    """
+    探索実行
+    """
+    sampler = Optimizer(sampler_name)
+    Xs = X_init.copy()
+    ys = y_init.copy()
+
+    distributions = func.distributions
+    for i in tqdm(range(iters)):
+        sampler.create_study()
+        new_X = sampler.get_candidate(Xs, ys, distributions)
+        new_y = func.f(new_X)
+        Xs = np.concatenate([Xs, new_X])
+        ys = np.concatenate([ys, new_y])
+    return ys
+
+
 if __name__ == '__main__':
     optuna.logging.disable_default_handler()
 
     # 関数定義
-    exp_name = 'StyblinskiTang40'
-    f = StyblinskiTang(dim=40)
-    distributions = f.distributions
+    # exp_name = 'StyblinskiTang8'
+    # f = StyblinskiTang(dim=8)
+    # exp_name = 'StyblinskiTang40'
+    # f = StyblinskiTang(dim=40)
+    # exp_name = 'Hartmann6'
+    # f = Hartmann6()
+    # exp_name = 'FiveWellPotentioal'
+    # f = FiveWellPotentioal()
+    exp_name = 'Hartmann6Cat2'
+    f = Hartmann6Cat2()
 
     os.makedirs(f'exp_result/{exp_name}', exist_ok=True)
+    print(f'Run experiment: {exp_name}')
 
-    for j in range(1, 11):
-        print(f'Run experiment {j}')
+    EXP_NUM = 10  # 実験回数
+    SERCH_NUM = 100  # 観測回数
+    INIT_NUM = 10  # 初期点の数
+    use_methods = [SamplerName.TPE, SamplerName.LogEIGammaPrior, SamplerName.LogEI]
+
+    for j in range(1, EXP_NUM + 1):
+        print(f'Start trial:{j}')
+        serch_fs = {}
+
         # 初期点ランダムに10点
         X_init = f.random_x()
         y_init = f.f(X_init)
-        for i in range(9):
+        for i in range(INIT_NUM - 1):
             X = f.random_x()
             y = f.f(X)
             X_init = np.concatenate([X_init, X])
             y_init = np.concatenate([y_init, y])
 
-        # サンプラー定義
+        # ランダム探索
         ys_random = y_init.copy()
-        tpe_sampler = Optimizer(SamplerName.TPE)
-        Xs_tpe = X_init.copy()
-        ys_tpe = y_init.copy()
-
-        ei_sampler = Optimizer(SamplerName.EI)
-        Xs_ei = X_init.copy()
-        ys_ei = y_init.copy()
-
-        logei_sampler = Optimizer(SamplerName.LogEI)
-        Xs_logei = X_init.copy()
-        ys_logei = y_init.copy()
-
-        saas_sampler = Optimizer(SamplerName.SaasEI)
-        Xs_saas = X_init.copy()
-        ys_saas = y_init.copy()
-        '''
-        lcb_sampler = Optimizer(SamplerName.LCB)
-        Xs_lcb = X_init.copy()
-        ys_lcb = y_init.copy()
-        '''
-
-        # 探索
-        ITER = 100
-        for i in tqdm(range(ITER)):
-            # ランダム探索
+        for i in range(SERCH_NUM):
             new_y = f.f(f.random_x())
             ys_random = np.concatenate([ys_random, new_y])
+        serch_fs['Random'] = ys_random.squeeze()
 
-            # TPEでの探索
-            tpe_sampler.create_study()
-            new_X = tpe_sampler.get_candidate(Xs_tpe, ys_tpe, distributions)
-            new_y = f.f(new_X)
-            Xs_tpe = np.concatenate([Xs_tpe, new_X])
-            ys_tpe = np.concatenate([ys_tpe, new_y])
-
-            # EIでの探索
-            ei_sampler.create_study()
-            new_X = ei_sampler.get_candidate(Xs_ei, ys_ei, distributions)
-            new_y = f.f(new_X)
-            Xs_ei = np.concatenate([Xs_ei, new_X])
-            ys_ei = np.concatenate([ys_ei, new_y])
-
-            # LogEIでの探索
-            logei_sampler.create_study()
-            new_X = logei_sampler.get_candidate(Xs_logei, ys_logei, distributions)
-            new_y = f.f(new_X)
-            Xs_logei = np.concatenate([Xs_logei, new_X])
-            ys_logei = np.concatenate([ys_logei, new_y])
-
-            # SAAS + EI
-            saas_sampler.create_study()
-            new_X = saas_sampler.get_candidate(Xs_saas, ys_saas, distributions)
-            new_y = f.f(new_X)
-            Xs_saas = np.concatenate([Xs_saas, new_X])
-            ys_saas = np.concatenate([ys_saas, new_y])
-            '''
-            # LCBで探索
-            lcb_sampler.create_study()
-            new_X = lcb_sampler.get_candidate(Xs_lcb, ys_lcb, distributions)
-            new_y = f.f(new_X)
-            Xs_lcb = np.concatenate([Xs_lcb, new_X])
-            ys_lcb = np.concatenate([ys_lcb, new_y])
-            '''
+        # 各手法で探索
+        for method in use_methods:
+            print(f'Start optimization using {method.value}')
+            ys = run_optimization(f, X_init, y_init, method, SERCH_NUM)
+            serch_fs[method.value] = ys.squeeze()
 
         # 探索結果を格納
-        df = pl.DataFrame({
-            'Random': ys_random.squeeze(),
-            'TPE': ys_tpe.squeeze(),
-            'EI': ys_ei.squeeze(),
-            'LogEI': ys_logei.squeeze(),
-            'SAAS+EI': ys_saas.squeeze(),
-            # 'LCB': ys_lcb.squeeze()
-        })
+        df = pl.DataFrame(serch_fs)
         df.write_csv(f'exp_result/{exp_name}/run_{j}.csv')

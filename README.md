@@ -13,17 +13,21 @@ If omitted, it is determined automatically based on the number of objectives. If
 # candidates_func
 以下の`candidates_func`を実装
 - Single Objective
-    - EI
-    - LogEI
+    - qEI (with Gamma Prior)
+    - qLogEI (with Gamma Prior)
+    - qEI
+    - qLogEI
     - LCB
-    - SAASBO + EI
+    - SAAS + EI
+    - ~~Thompson Sampling~~
 - Multi Objective
-    - ~~EHVI~~
-    - ~~LogEHVI~~
+    - ~~qEHVI~~
+    - ~~qLogEHVI~~
 
 # Remarks
 - Use BoTorch==0.12.0
     - 高次元BOの手法として，VanilaBO[[Carl Hvarfner, et al., 2024](https://arxiv.org/abs/2402.02229)]が提案されているが，BoTorchではv0.12.0からデフォルトになっている．([release v0.12.0](https://github.com/pytorch/botorch/releases/tag/v0.12.0))
+    - "with Gamma Prior"でないものは，デフォルトのLogNormal Priorを利用
 - 指定しない場合はqEIもしくはqEHVIが利用されると記載されているが，実際にはqLogEI, qLogEHVIが利用されている模様．
 - SAASBOはfittingにNUTS Samplerを利用しており，計算量がO(N^3)なので実行速度が遅い．
 
@@ -34,8 +38,11 @@ $ docker compose up --build
 ```
 Run experiment
 ```
-$ Python main.py
+$ python main.py 
 
-2%|██████▌ 
+Run experiment: StyblinskiTang40
+Start trial:1
+Start optimization using TPE
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████| 100/100 [00:06<00:00, 14.98it/s]
 ```
 
