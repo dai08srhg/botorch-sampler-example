@@ -19,7 +19,7 @@ If omitted, it is determined automatically based on the number of objectives. If
     - qLogEI
     - LCB
     - SAAS + EI
-    - ~~Thompson Sampling~~
+    - Thompson Sampling
 - Multi Objective
     - ~~qEHVI~~
     - ~~qLogEHVI~~
@@ -27,7 +27,7 @@ If omitted, it is determined automatically based on the number of objectives. If
 # Remarks
 - Use BoTorch==0.12.0
     - 高次元BOの手法として，VanilaBO[[Carl Hvarfner, et al., 2024](https://arxiv.org/abs/2402.02229)]が提案されているが，BoTorchではv0.12.0からデフォルトになっている．([release v0.12.0](https://github.com/pytorch/botorch/releases/tag/v0.12.0))
-    - "with Gamma Prior"でないものは，デフォルトのLogNormal Priorを利用
+    - "with Gamma Prior"でないものは，デフォルトのdimension-scaled log-normal hyperparameter priorsを利用
 - 指定しない場合はqEIもしくはqEHVIが利用されると記載されているが，実際にはqLogEI, qLogEHVIが利用されている模様．
 - SAASBOはfittingにNUTS Samplerを利用しており，計算量がO(N^3)なので実行速度が遅い．
 
