@@ -23,9 +23,7 @@ from botorch.acquisition.analytic import AnalyticAcquisitionFunction
 # 自作獲得関数
 #############
 class LCB(AnalyticAcquisitionFunction):
-    """
-    Lower Confidence Bound
-    """
+    """Lower Confidence Bound."""
 
     def __init__(self, model: Model, maximize: bool = True, beta: float = 0.5, posterior_transform=None) -> None:
         super().__init__(model=model, posterior_transform=posterior_transform)
@@ -41,9 +39,7 @@ class LCB(AnalyticAcquisitionFunction):
 
 
 class ThompsonSampling(AnalyticAcquisitionFunction):
-    """
-    トンプソンサンプリング獲得関数
-    """
+    """トンプソンサンプリング獲得関数."""
 
     def __init__(
         self,
@@ -68,19 +64,30 @@ class ThompsonSampling(AnalyticAcquisitionFunction):
         self.candidates = X[torch.argmax(Y)]  # GPからのサンプリングされた関数上での最適点を取得
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
-        return -((X - self.candidates)**2).sum(axis=(1, 2))
+        return -((X - self.candidates) ** 2).sum(axis=(1, 2))
 
 
 ##################
 # candidates_func
 ##################
-def ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
-    """Expected Improvementのモンテカルロ獲得関数
-    v0.12.0であるため, SingleTaskGPではdimension-scaled log-normal hyperparameter priorsがデフォルト
+def ei(
+    train_x: torch.Tensor,
+    train_obj: torch.Tensor,
+    train_con: torch.Tensor,
+    bounds: torch.Tensor,
+    pending_x: torch.Tensor,
+):
+    """Expected Improvementのモンテカルロ獲得関数.
+
+    v0.12.0であるため, SingleTaskGPではdimension-scaled log-normal hyperparameter priorsがデフォルト.
 
     Args:
         train_x (torch.Tensor): 観測データのパラメータ (n, x_dim)
         train_obj (torch.Tensor): 観測データの目的関数の評価値 (n, obj_dim)
+        train_con (torch.Tensor): aa
+        bounds (torch.Tensor): aa
+        pending_x (torch.Tensor): aa
+
     """
     train_x = normalize(train_x, bounds=bounds)
     model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)))
@@ -94,27 +101,23 @@ def ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pendin
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(acq_function=acq_func,
-                                  bounds=standard_bounds,
-                                  q=1,
-                                  num_restarts=10,
-                                  raw_samples=512,
-                                  options={
-                                      "batch_limit": 5,
-                                      "maxiter": 200
-                                  },
-                                  sequential=True)
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
     return candidates
 
 
 def log_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
-    """Log Expected Improvementのモンテカルロ獲得関数
-    v0.12.0であるため, SingleTaskGPではdimension-scaled log-normal hyperparameter priorsがデフォルト
+    """Log Expected Improvementのモンテカルロ獲得関数.
 
-    Args:
-        train_x (torch.Tensor): 観測データのパラメータ (n, x_dim)
-        train_obj (torch.Tensor): 観測データの目的関数の評価値 (n, obj_dim)
+    ※ v0.12.0であるため, SingleTaskGPではdimension-scaled log-normal hyperparameter priorsがデフォルト
     """
     train_x = normalize(train_x, bounds=bounds)
     model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)))
@@ -128,31 +131,30 @@ def log_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pe
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(acq_function=acq_func,
-                                  bounds=standard_bounds,
-                                  q=1,
-                                  num_restarts=10,
-                                  raw_samples=512,
-                                  options={
-                                      "batch_limit": 5,
-                                      "maxiter": 200
-                                  },
-                                  sequential=True)
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
 
     return candidates
 
 
 def ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
-    """Expected Improvementのモンテカルロ獲得関数
-    MaternKernelのlengthscaleにGamma分布を用いたEI
+    """Expected Improvementのモンテカルロ獲得関数.
+
+    MaternKernelのlengthscaleにGamma分布を用いたEI (v0.11.0以前のデフォルト)
     """
     train_x = normalize(train_x, bounds=bounds)
     covar_module = get_matern_kernel_with_gamma_prior(ard_num_dims=train_x.shape[-1])
-    model = SingleTaskGP(train_x,
-                         train_obj,
-                         outcome_transform=Standardize(m=train_obj.size(-1)),
-                         covar_module=covar_module)
+    model = SingleTaskGP(
+        train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
+    )
 
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     fit_gpytorch_mll(mll)
@@ -163,30 +165,29 @@ def ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, b
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(acq_function=acq_func,
-                                  bounds=standard_bounds,
-                                  q=1,
-                                  num_restarts=10,
-                                  raw_samples=512,
-                                  options={
-                                      "batch_limit": 5,
-                                      "maxiter": 200
-                                  },
-                                  sequential=True)
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
     return candidates
 
 
 def log_ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
-    """Expected Improvementのモンテカルロ獲得関数
+    """Expected Improvementのモンテカルロ獲得関数.
+
     MaternKernelのlengthscaleにGamma分布を用いたLogEI
     """
     train_x = normalize(train_x, bounds=bounds)
     covar_module = get_matern_kernel_with_gamma_prior(ard_num_dims=train_x.shape[-1])
-    model = SingleTaskGP(train_x,
-                         train_obj,
-                         outcome_transform=Standardize(m=train_obj.size(-1)),
-                         covar_module=covar_module)
+    model = SingleTaskGP(
+        train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
+    )
 
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     fit_gpytorch_mll(mll)
@@ -197,22 +198,21 @@ def log_ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_co
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(acq_function=acq_func,
-                                  bounds=standard_bounds,
-                                  q=1,
-                                  num_restarts=10,
-                                  raw_samples=512,
-                                  options={
-                                      "batch_limit": 5,
-                                      "maxiter": 200
-                                  },
-                                  sequential=True)
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
     return candidates
 
 
 def lcb(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
-    """Lower Confidence Bound (LCB)"""
+    """Lower Confidence Bound (LCB)."""
     train_x = normalize(train_x, bounds=bounds)
     model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)))
 
@@ -225,28 +225,28 @@ def lcb(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pendi
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(acq_function=acq_func,
-                                  bounds=standard_bounds,
-                                  q=1,
-                                  num_restarts=10,
-                                  raw_samples=512,
-                                  options={
-                                      "batch_limit": 5,
-                                      "maxiter": 200
-                                  },
-                                  sequential=True)
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
     return candidates
 
 
 def saas_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
-    """SAAS + EI
-    """
+    """SAAS + EI."""
     train_x = normalize(train_x, bounds=bounds)
-    model = SaasFullyBayesianSingleTaskGP(train_x,
-                                          train_obj,
-                                          train_Yvar=torch.full_like(train_obj, 1e-6),
-                                          outcome_transform=Standardize(m=train_obj.size(-1)))
+    model = SaasFullyBayesianSingleTaskGP(
+        train_x,
+        train_obj,
+        train_Yvar=torch.full_like(train_obj, 1e-6),
+        outcome_transform=Standardize(m=train_obj.size(-1)),
+    )
     fit_fully_bayesian_model_nuts(model, warmup_steps=256, num_samples=128, thinning=16, disable_progbar=True)
 
     sampler = SobolQMCNormalSampler(sample_shape=torch.Size([128]))
@@ -255,23 +255,21 @@ def saas_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, p
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(acq_function=acq_func,
-                                  bounds=standard_bounds,
-                                  q=1,
-                                  num_restarts=10,
-                                  raw_samples=512,
-                                  options={
-                                      "batch_limit": 5,
-                                      "maxiter": 200
-                                  },
-                                  sequential=True)
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
     return candidates
 
 
 def thompson_sampling(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
-    """トンプソンサンプリング
-    """
+    """トンプソンサンプリング."""
     train_x = normalize(train_x, bounds=bounds)
     model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)))
 
@@ -283,15 +281,14 @@ def thompson_sampling(train_x: torch.Tensor, train_obj: torch.Tensor, train_con,
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(acq_function=acq_func,
-                                  bounds=standard_bounds,
-                                  q=1,
-                                  num_restarts=10,
-                                  raw_samples=512,
-                                  options={
-                                      "batch_limit": 5,
-                                      "maxiter": 200
-                                  },
-                                  sequential=True)
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
     return candidates

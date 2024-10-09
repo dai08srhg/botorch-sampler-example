@@ -1,0 +1,17 @@
+[tool.ruff]
+# https://docs.astral.sh/ruff/settings/
+line-length = 120  # 1行の最大文字数
+respect-gitignore = true
+show-fixes = true
+
+[tool.ruff.format]
+docstring-code-format = true
+line-ending = "lf"
+indent-style = "space"
+quote-style = "single"
+
+[tool.ruff.lint]
+# チェックするエラーの種類
+select = ["E4", "E7", "E9", "F", "B", "I", "D"]
+# 除外するエラーの種類
+ignore = ["D401", "D1", "I001"]

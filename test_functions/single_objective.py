@@ -1,5 +1,5 @@
-import numpy as np
 import random
+import numpy as np
 from optuna.distributions import FloatDistribution, CategoricalDistribution
 
 
@@ -8,19 +8,19 @@ class InputError(Exception):
 
 
 class Hartmann6:
-    '''
-    Hartmann 6-Dimensional function
-    Based on the following MATLAB code:
+    """Hartmann 6-Dimensional function. Based on the following MATLAB code:
+
     https://www.sfu.ca/~ssurjano/hart6.html
-    '''
+    """
 
     def __init__(self, sd=0):
         self.sd = sd
-        self.distributions = {f'x{d}': FloatDistribution(0., 1.) for d in range(6)}
+        self.distributions = {f'x{d}': FloatDistribution(0.0, 1.0) for d in range(6)}
         self.min_f = -3.32237
 
     def f(self, xx: np.ndarray) -> np.ndarray:
-        """
+        """f.
+
         Args:
             xx (np.ndarray): 入力. xx.shape=(1, 6)
 
@@ -34,10 +34,22 @@ class Hartmann6:
         y = np.zeros(n)
         for i in range(n):
             alpha = np.array([1.0, 1.2, 3.0, 3.2])
-            A = np.array([[10, 3, 17, 3.5, 1.7, 8], [0.05, 10, 17, 0.1, 8, 14], [3, 3.5, 1.7, 10, 17, 8],
-                          [17, 8, 0.05, 10, 0.1, 14]])
-            P = 1e-4 * np.array([[1312, 1696, 5569, 124, 8283, 5886], [2329, 4135, 8307, 3736, 1004, 9991],
-                                 [2348, 1451, 3522, 2883, 3047, 6650], [4047, 8828, 8732, 5743, 1091, 381]])
+            A = np.array(
+                [
+                    [10, 3, 17, 3.5, 1.7, 8],
+                    [0.05, 10, 17, 0.1, 8, 14],
+                    [3, 3.5, 1.7, 10, 17, 8],
+                    [17, 8, 0.05, 10, 0.1, 14],
+                ]
+            )
+            P = 1e-4 * np.array(
+                [
+                    [1312, 1696, 5569, 124, 8283, 5886],
+                    [2329, 4135, 8307, 3736, 1004, 9991],
+                    [2348, 1451, 3522, 2883, 3047, 6650],
+                    [4047, 8828, 8732, 5743, 1091, 381],
+                ]
+            )
 
             outer = 0
             for ii in range(4):
@@ -46,7 +58,7 @@ class Hartmann6:
                     xj = xx[i, jj]
                     Aij = A[ii, jj]
                     Pij = P[ii, jj]
-                    inner = inner + Aij * (xj - Pij)**2
+                    inner = inner + Aij * (xj - Pij) ** 2
                 new = alpha[ii] * np.exp(-inner)
                 outer = outer + new
             y[i] = -outer
@@ -59,22 +71,21 @@ class Hartmann6:
         return (y + noise).reshape(1, 1)
 
     def random_x(self) -> np.ndarray:
-        """入力空間の点をランダムに1点取得
-        """
+        """入力空間の点をランダムに1点取得"""
         x = np.random.uniform(low=0.0, high=1.0, size=6)
         x = x.reshape(1, x.shape[0])
         return x
 
 
 class Hartmann6Cat2:
-    '''
-    Hartmann 6-Dimensional functionをベースとし, 1,4次元目をカテゴリカル変数に変換
+    """Hartmann 6-Dimensional functionをベースとし, 1,4次元目をカテゴリカル変数に変換
+
     ※ 離散化して順序をシャッフル (順序関係の意味をなくす)
-    '''
+    """
 
     def __init__(self, sd=0):
         self.sd = sd
-        self.distributions = {f'x{d}': FloatDistribution(0., 1.) for d in range(6)}
+        self.distributions = {f'x{d}': FloatDistribution(0.0, 1.0) for d in range(6)}
         self.distributions['x0'] = CategoricalDistribution([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         self.distributions['x3'] = CategoricalDistribution([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
 
@@ -94,12 +105,11 @@ class Hartmann6Cat2:
             12: 0.93,
             13: 0.4,
             14: 0.2,
-            15: 0.46
+            15: 0.46,
         }
 
     def f(self, xx: np.ndarray) -> np.ndarray:
-        """
-        """
+        """ """
         xx = np.copy(xx)
         if xx.shape != (1, 6):
             raise InputError('入力次元エラー. shape=(1, 6) is required')
@@ -112,10 +122,22 @@ class Hartmann6Cat2:
         y = np.zeros(n)
         for i in range(n):
             alpha = np.array([1.0, 1.2, 3.0, 3.2])
-            A = np.array([[10, 3, 17, 3.5, 1.7, 8], [0.05, 10, 17, 0.1, 8, 14], [3, 3.5, 1.7, 10, 17, 8],
-                          [17, 8, 0.05, 10, 0.1, 14]])
-            P = 1e-4 * np.array([[1312, 1696, 5569, 124, 8283, 5886], [2329, 4135, 8307, 3736, 1004, 9991],
-                                 [2348, 1451, 3522, 2883, 3047, 6650], [4047, 8828, 8732, 5743, 1091, 381]])
+            A = np.array(
+                [
+                    [10, 3, 17, 3.5, 1.7, 8],
+                    [0.05, 10, 17, 0.1, 8, 14],
+                    [3, 3.5, 1.7, 10, 17, 8],
+                    [17, 8, 0.05, 10, 0.1, 14],
+                ]
+            )
+            P = 1e-4 * np.array(
+                [
+                    [1312, 1696, 5569, 124, 8283, 5886],
+                    [2329, 4135, 8307, 3736, 1004, 9991],
+                    [2348, 1451, 3522, 2883, 3047, 6650],
+                    [4047, 8828, 8732, 5743, 1091, 381],
+                ]
+            )
             outer = 0
             for ii in range(4):
                 inner = 0
@@ -123,7 +145,7 @@ class Hartmann6Cat2:
                     xj = xx[i, jj]
                     Aij = A[ii, jj]
                     Pij = P[ii, jj]
-                    inner = inner + Aij * (xj - Pij)**2
+                    inner = inner + Aij * (xj - Pij) ** 2
                 new = alpha[ii] * np.exp(-inner)
                 outer = outer + new
             y[i] = -outer
@@ -135,8 +157,7 @@ class Hartmann6Cat2:
         return (y + noise).reshape(1, 1)
 
     def random_x(self):
-        """
-        """
+        """ """
         x = np.random.uniform(low=0.0, high=1.0, size=6)
         x[0] = random.choice(list(self.x0_map.keys()))
         x[3] = random.choice(list(self.x3_map.keys()))
@@ -144,17 +165,16 @@ class Hartmann6Cat2:
 
 
 class StyblinskiTang:
-    """
-    https://www.sfu.ca/~ssurjano/stybtang.html
-    """
+    """https://www.sfu.ca/~ssurjano/stybtang.html"""
 
     def __init__(self, dim=2, sd=0):
         self.dim = dim
-        self.distributions = {f'x{d}': FloatDistribution(-5., 5.) for d in range(dim)}
+        self.distributions = {f'x{d}': FloatDistribution(-5.0, 5.0) for d in range(dim)}
         self.min_f = -39.16599 * dim
 
     def f(self, xx: np.ndarray):
-        """
+        """f.
+
         Args:
             xx (np.ndarray): 入力. xx.shape=(1, x_dim)
 
@@ -169,23 +189,22 @@ class StyblinskiTang:
         return np.array([a]).reshape(1, 1)
 
     def random_x(self):
-        """
-        """
+        """ """
         x = np.random.uniform(low=-5.0, high=5.0, size=self.dim)
         return x.reshape(1, x.shape[0])
 
 
 class FiveWellPotentioal:
-    """
-    """
+    """ """
 
     def __init__(self, sd=0):
         """"""
-        self.distributions = {f'x{d}': FloatDistribution(-20., 20.) for d in range(2)}
+        self.distributions = {f'x{d}': FloatDistribution(-20.0, 20.0) for d in range(2)}
         self.min_f = -1.4616
 
     def f(self, xx: np.ndarray):
-        """
+        """f.
+
         Args:
             xx (np.ndarray): 入力. xx.shape=(1, 2)
 
@@ -195,20 +214,21 @@ class FiveWellPotentioal:
         if xx.shape != (1, 2):
             raise InputError('入力次元エラー. shape=(1, 2) is required')
         xx_ = np.squeeze(xx)
-        f = (1 + 0.0001 * (xx_[0]**2 + xx_[1]**2)**(1.2)) * (1 - (1 / (1 + 0.05 * (xx_[0]**2 + (xx_[1] - 10)**2))) -
-                                                             (1 / (1 + 0.05 * ((xx_[0] - 10)**2 + xx_[1]**2))) -
-                                                             (1.5 / (1 + 0.03 * ((xx_[0] + 10)**2 + xx_[1]**2))) -
-                                                             (2 / (1 + 0.05 * ((xx_[0] - 5)**2 + (xx_[1] + 10)**2))) -
-                                                             (1 / (1 + 0.1 * ((xx_[0] + 5)**2 + (xx_[1] + 10)**2))))
+        f = (1 + 0.0001 * (xx_[0] ** 2 + xx_[1] ** 2) ** (1.2)) * (
+            1
+            - (1 / (1 + 0.05 * (xx_[0] ** 2 + (xx_[1] - 10) ** 2)))
+            - (1 / (1 + 0.05 * ((xx_[0] - 10) ** 2 + xx_[1] ** 2)))
+            - (1.5 / (1 + 0.03 * ((xx_[0] + 10) ** 2 + xx_[1] ** 2)))
+            - (2 / (1 + 0.05 * ((xx_[0] - 5) ** 2 + (xx_[1] + 10) ** 2)))
+            - (1 / (1 + 0.1 * ((xx_[0] + 5) ** 2 + (xx_[1] + 10) ** 2)))
+        )
         return np.array(f).reshape(1, 1)
 
     def random_x(self):
-        """
-        """
+        """ """
         x = np.random.uniform(low=-20.0, high=20.0, size=2)
         return x.reshape(1, x.shape[0])
 
 
 class Ackley:
-    """
-    """
+    """ """

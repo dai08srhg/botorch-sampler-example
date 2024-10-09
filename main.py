@@ -1,20 +1,26 @@
+import optuna
 import os
 import numpy as np
-import optuna
+import polars as pl
 from enum import Enum
 from tqdm import tqdm
-import polars as pl
 from test_functions.single_objective import Hartmann6, StyblinskiTang, FiveWellPotentioal, Hartmann6Cat2
-from candidates_funcs.single_objective_candidates_func import (ei, log_ei, lcb, saas_ei, ei_gammma_prior,
-                                                               log_ei_gammma_prior)
+from candidates_funcs.single_objective_candidates_func import (
+    ei,
+    log_ei,
+    lcb,
+    saas_ei,
+    ei_gammma_prior,
+    log_ei_gammma_prior,
+)
+
 
 TargetFunction = Hartmann6 | StyblinskiTang | FiveWellPotentioal
 
 
 class SamplerName(str, Enum):
-    """
-    最適化バージョン
-    """
+    """最適化バージョン."""
+
     TPE = 'TPE'
     EIGammaPrior = 'EI with GammaPrior'
     LogEIGammaPrior = 'LogEI with GammaPrior'
@@ -25,6 +31,7 @@ class SamplerName(str, Enum):
 
 
 class Optimizer:
+    """最適化クラス."""
 
     def __init__(self, sampler_name: SamplerName):
         if sampler_name == SamplerName.TPE:
@@ -45,13 +52,15 @@ class Optimizer:
             pass
 
     def _set_samples(self, Xs: np.ndarray, ys: np.ndarray, distributions: dict):
-        """studyに観測データを登録
-        ※ Tell_and_Askのインターフェースを利用
+        """studyに観測データを登録.
+
+        ※ Tell_and_Askのインターフェースを利用.
 
         Args:
-            Xs (np.ndarray): shape=(n, x_dim)
-            ys (np.ndarray): shape=(n, y_dim)
+            Xs (np.ndarray): shape=(n, x_dim).
+            ys (np.ndarray): shape=(n, y_dim).
             distributions (Dict[str, optuna.distributions]): 探索空間
+
         """
         features = list(distributions.keys())
         for X, y in zip(Xs, ys):
@@ -62,16 +71,16 @@ class Optimizer:
             self.study.add_trial(trial)
 
     def create_study(self):
-        """
-        """
         self.study = optuna.create_study(direction='minimize', sampler=self.sampler)
 
     def get_candidate(self, Xs: np.ndarray, ys: np.ndarray, distributions: dict):
-        """
+        """候補点を取得.
+
         Args:
             Xs (np.ndarray): shape=(n, x_dim)
             ys (np.ndarray): shape=(n, y_dim)
             distributions (Dict[str, optuna.distributions]): 探索空間
+
         """
         self._set_samples(Xs, ys, distributions)
         trial = self.study.ask()
@@ -85,20 +94,20 @@ class Optimizer:
         return new_X.reshape(1, new_X.shape[0])
 
 
-def run_optimization(func: TargetFunction,
-                     X_init: np.ndarray,
-                     y_init: np.ndarray,
-                     sampler_name: SamplerName,
-                     iters: int = 100):
-    """
-    探索実行
-    """
+def run_optimization(
+    func: TargetFunction,
+    X_init: np.ndarray,
+    y_init: np.ndarray,
+    sampler_name: SamplerName,
+    iters: int = 100,
+):
+    """探索を実行."""
     sampler = Optimizer(sampler_name)
     Xs = X_init.copy()
     ys = y_init.copy()
 
     distributions = func.distributions
-    for i in tqdm(range(iters)):
+    for _ in tqdm(range(iters)):
         sampler.create_study()
         new_X = sampler.get_candidate(Xs, ys, distributions)
         new_y = func.f(new_X)
@@ -137,7 +146,7 @@ if __name__ == '__main__':
         # 初期点ランダムに10点
         X_init = f.random_x()
         y_init = f.f(X_init)
-        for i in range(INIT_NUM - 1):
+        for _ in range(INIT_NUM - 1):
             X = f.random_x()
             y = f.f(X)
             X_init = np.concatenate([X_init, X])
@@ -145,7 +154,7 @@ if __name__ == '__main__':
 
         # ランダム探索
         ys_random = y_init.copy()
-        for i in range(SERCH_NUM):
+        for _ in range(SERCH_NUM):
             new_y = f.f(f.random_x())
             ys_random = np.concatenate([ys_random, new_y])
         serch_fs['Random'] = ys_random.squeeze()

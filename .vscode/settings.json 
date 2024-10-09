@@ -1,0 +1,15 @@
+{
+    // "python.analysis.typeCheckingMode": "basic",
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": "explicit",
+          "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "ruff.organizeImports": false,
+    "ruff.format.args": [
+        "--config=pyproject.toml"
+    ],
+}
