@@ -21,8 +21,8 @@ If omitted, it is determined automatically based on the number of objectives. If
     - SAAS + EI
     - Thompson Sampling
 - Multi Objective
-    - ~~qEHVI~~
-    - ~~qLogEHVI~~
+    - qEHVI
+    - qLogEHVI
 
 # Remarks
 - Use BoTorch==0.12.0

@@ -6,8 +6,7 @@ from collections import defaultdict
 
 
 def get_best_ys(ys):
-    """
-    """
+    """ """
     best_y = np.inf
     best_ys = []
     for y in ys:
