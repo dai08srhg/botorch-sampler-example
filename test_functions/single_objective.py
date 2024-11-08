@@ -4,11 +4,11 @@ from optuna.distributions import FloatDistribution, CategoricalDistribution
 
 
 class InputError(Exception):
-    """"""
+    """."""
 
 
 class Hartmann6:
-    """Hartmann 6-Dimensional function. Based on the following MATLAB code:
+    """Hartmann 6-Dimensional function. Based on the following MATLAB code.
 
     https://www.sfu.ca/~ssurjano/hart6.html
     """
@@ -26,6 +26,7 @@ class Hartmann6:
 
         Returns:
             np.ndarray: 出力. shape=(1, 1)
+
         """
         if xx.shape != (1, 6):
             raise InputError('入力次元エラー. shape=(1, 6) is required')
@@ -71,14 +72,14 @@ class Hartmann6:
         return (y + noise).reshape(1, 1)
 
     def random_x(self) -> np.ndarray:
-        """入力空間の点をランダムに1点取得"""
+        """入力空間の点をランダムに1点取得."""
         x = np.random.uniform(low=0.0, high=1.0, size=6)
         x = x.reshape(1, x.shape[0])
         return x
 
 
 class Hartmann6Cat2:
-    """Hartmann 6-Dimensional functionをベースとし, 1,4次元目をカテゴリカル変数に変換
+    """Hartmann 6-Dimensional functionをベースとし, 1,4次元目をカテゴリカル変数に変換.
 
     ※ 離散化して順序をシャッフル (順序関係の意味をなくす)
     """
@@ -109,7 +110,7 @@ class Hartmann6Cat2:
         }
 
     def f(self, xx: np.ndarray) -> np.ndarray:
-        """ """
+        """."""
         xx = np.copy(xx)
         if xx.shape != (1, 6):
             raise InputError('入力次元エラー. shape=(1, 6) is required')
@@ -157,7 +158,7 @@ class Hartmann6Cat2:
         return (y + noise).reshape(1, 1)
 
     def random_x(self):
-        """ """
+        """."""
         x = np.random.uniform(low=0.0, high=1.0, size=6)
         x[0] = random.choice(list(self.x0_map.keys()))
         x[3] = random.choice(list(self.x3_map.keys()))
@@ -165,7 +166,7 @@ class Hartmann6Cat2:
 
 
 class StyblinskiTang:
-    """https://www.sfu.ca/~ssurjano/stybtang.html"""
+    """https://www.sfu.ca/~ssurjano/stybtang.html ."""
 
     def __init__(self, dim=2, sd=0):
         self.dim = dim
@@ -180,6 +181,7 @@ class StyblinskiTang:
 
         Returns:
             np.ndarray: 出力. shape=(1, 1)
+
         """
         if xx.shape != (1, self.dim):
             raise InputError(f'入力次元エラー. shape=(1, {self.dim}) is required')
@@ -189,16 +191,15 @@ class StyblinskiTang:
         return np.array([a]).reshape(1, 1)
 
     def random_x(self):
-        """ """
+        """."""
         x = np.random.uniform(low=-5.0, high=5.0, size=self.dim)
         return x.reshape(1, x.shape[0])
 
 
 class FiveWellPotentioal:
-    """ """
 
     def __init__(self, sd=0):
-        """"""
+        """初期化."""
         self.distributions = {f'x{d}': FloatDistribution(-20.0, 20.0) for d in range(2)}
         self.min_f = -1.4616
 
@@ -210,6 +211,7 @@ class FiveWellPotentioal:
 
         Returns:
             np.ndarray: 出力. shape=(1,1)
+
         """
         if xx.shape != (1, 2):
             raise InputError('入力次元エラー. shape=(1, 2) is required')
