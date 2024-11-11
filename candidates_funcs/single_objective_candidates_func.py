@@ -8,7 +8,10 @@ from botorch.models import SingleTaskGP
 from botorch.models.model import Model
 from botorch.models.transforms.outcome import Standardize
 from botorch.models.fully_bayesian import SaasFullyBayesianSingleTaskGP
-from botorch.models.utils.gpytorch_modules import get_matern_kernel_with_gamma_prior
+from botorch.models.utils.gpytorch_modules import (
+    get_matern_kernel_with_gamma_prior,
+    get_covar_module_with_dim_scaled_prior,
+)
 from botorch.acquisition.monte_carlo import qExpectedImprovement
 from botorch.acquisition.analytic import ExpectedImprovement, LogExpectedImprovement
 from botorch.acquisition.logei import qLogExpectedImprovement
@@ -17,11 +20,23 @@ from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from gpytorch.priors.torch_priors import GammaPrior, LogNormalPrior
 from botorch.acquisition.objective import PosteriorTransform
 from botorch.acquisition.analytic import AnalyticAcquisitionFunction
+from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
+from gpytorch.priors.torch_priors import GammaPrior, LogNormalPrior
+from math import log, sqrt
+from gpytorch.constraints.constraints import GreaterThan
+import numpy as np
+from botorch.models import SingleTaskVariationalGP
+from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
+from gpytorch.mlls import VariationalELBO
+
+
+SQRT2 = sqrt(2)
+SQRT3 = sqrt(3)
 
 
 ##############
 # 自作獲得関数
-#############
+##############
 class LCB(AnalyticAcquisitionFunction):
     """Lower Confidence Bound."""
 
@@ -70,7 +85,7 @@ class ThompsonSampling(AnalyticAcquisitionFunction):
 ##################
 # candidates_func
 ##################
-def ei(
+def ei_dim_scaled_prior(
     train_x: torch.Tensor,
     train_obj: torch.Tensor,
     train_con: torch.Tensor,
@@ -79,7 +94,7 @@ def ei(
 ):
     """Expected Improvementのモンテカルロ獲得関数.
 
-    v0.12.0であるため, SingleTaskGPではdimension-scaled log-normal hyperparameter priorsがデフォルト.
+    v0.12.0であるため, SingleTaskGPではdimension-scaled log-normal priorsがデフォルト.
 
     Args:
         train_x (torch.Tensor): 観測データのパラメータ (n, x_dim)
@@ -90,7 +105,23 @@ def ei(
 
     """
     train_x = normalize(train_x, bounds=bounds)
-    model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)))
+
+    ard_num_dims = train_x.shape[-1]
+    lengthscale_prior = LogNormalPrior(loc=SQRT2 + log(ard_num_dims) * 0.5, scale=SQRT3)
+    covar_module = ScaleKernel(
+        base_kernel=MaternKernel(
+            nu=2.5,
+            ard_num_dims=ard_num_dims,
+            batch_shape=None,
+            lengthscale_prior=lengthscale_prior,
+            lengthscale_constraint=GreaterThan(2.500e-02),
+        ),
+        batch_shape=None,
+        outputscale_prior=GammaPrior(2.0, 0.15),
+    )
+    model = SingleTaskGP(
+        train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
+    )
 
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     fit_gpytorch_mll(mll)
@@ -114,13 +145,29 @@ def ei(
     return candidates
 
 
-def log_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
+def logei_dim_scaled_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
     """Log Expected Improvementのモンテカルロ獲得関数.
 
     ※ v0.12.0であるため, SingleTaskGPではdimension-scaled log-normal hyperparameter priorsがデフォルト
     """
     train_x = normalize(train_x, bounds=bounds)
-    model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)))
+
+    ard_num_dims = train_x.shape[-1]
+    lengthscale_prior = LogNormalPrior(loc=SQRT2 + log(ard_num_dims) * 0.5, scale=SQRT3)
+    covar_module = ScaleKernel(
+        base_kernel=MaternKernel(
+            nu=2.5,
+            ard_num_dims=ard_num_dims,
+            batch_shape=None,
+            lengthscale_prior=lengthscale_prior,
+            lengthscale_constraint=GreaterThan(2.500e-02),
+        ),
+        batch_shape=None,
+        outputscale_prior=GammaPrior(2.0, 0.15),
+    )
+    model = SingleTaskGP(
+        train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
+    )
 
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     fit_gpytorch_mll(mll)
@@ -141,7 +188,6 @@ def log_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pe
         sequential=True,
     )
     candidates = unnormalize(candidates.detach(), bounds=bounds)
-
     return candidates
 
 
@@ -178,7 +224,7 @@ def ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, b
     return candidates
 
 
-def log_ei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
+def logei_gammma_prior(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
     """Expected Improvementのモンテカルロ獲得関数.
 
     MaternKernelのlengthscaleにGamma分布を用いたLogEI
@@ -238,7 +284,7 @@ def lcb(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pendi
     return candidates
 
 
-def saas_ei(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
+def ei_saas(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
     """SAAS + EI."""
     train_x = normalize(train_x, bounds=bounds)
     model = SaasFullyBayesianSingleTaskGP(
@@ -277,6 +323,58 @@ def thompson_sampling(train_x: torch.Tensor, train_obj: torch.Tensor, train_con,
     fit_gpytorch_mll(mll)
 
     acq_func = ThompsonSampling(model=model, bounds=bounds)
+
+    standard_bounds = torch.zeros_like(bounds)
+    standard_bounds[1] = 1
+
+    candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
+    candidates = unnormalize(candidates.detach(), bounds=bounds)
+    return candidates
+
+
+####　実験用
+def experimental(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
+    """実験用."""
+    train_x = normalize(train_x, bounds=bounds)
+    ard_num_dims = train_x.shape[-1]
+    covar_module = ScaleKernel(
+        base_kernel=MaternKernel(
+            nu=2.5,
+            ard_num_dims=ard_num_dims,
+            batch_shape=None,
+            lengthscale_prior=GammaPrior(3.0, 6.0),
+        ),
+        batch_shape=None,
+        outputscale_prior=GammaPrior(2, 0.15),
+    )
+    if train_x.shape[0] < 50:
+        model = SingleTaskGP(
+            train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
+        )
+        mll = ExactMarginalLogLikelihood(model.likelihood, model)
+        fit_gpytorch_mll(mll)
+    else:
+        # サンプルが増えたらスパース近似
+        model = SingleTaskVariationalGP(
+            train_x,
+            train_obj,
+            learn_inducing_points=True,
+            outcome_transform=Standardize(m=train_obj.size(-1)),
+            covar_module=covar_module,
+        )
+        mll = VariationalELBO(model.likelihood, model.model, num_data=train_x.shape[0])
+        fit_gpytorch_mll(mll)
+
+    sampler = SobolQMCNormalSampler(sample_shape=torch.Size([128]))
+    acq_func = qLogExpectedImprovement(model=model, best_f=train_obj.max(), sampler=sampler)
 
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1

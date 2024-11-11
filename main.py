@@ -4,30 +4,32 @@ import numpy as np
 import polars as pl
 from enum import Enum
 from tqdm import tqdm
-from test_functions.single_objective import Hartmann6, StyblinskiTang, FiveWellPotentioal, Hartmann6Cat2
+from test_functions.single_objective import Hartmann6, StyblinskiTang, FiveWellPotentioal, Hartmann6Cat2, SumOfSquares
 from candidates_funcs.single_objective_candidates_func import (
-    ei,
-    log_ei,
-    lcb,
-    saas_ei,
     ei_gammma_prior,
-    log_ei_gammma_prior,
+    ei_dim_scaled_prior,
+    logei_gammma_prior,
+    logei_dim_scaled_prior,
+    lcb,
+    ei_saas,
+    experimental,
 )
 
 
-TargetFunction = Hartmann6 | StyblinskiTang | FiveWellPotentioal
+TargetFunction = Hartmann6 | StyblinskiTang | FiveWellPotentioal | Hartmann6Cat2 | SumOfSquares
 
 
 class SamplerName(str, Enum):
     """最適化バージョン."""
 
     TPE = 'TPE'
-    EIGammaPrior = 'EI with GammaPrior'
-    LogEIGammaPrior = 'LogEI with GammaPrior'
-    EI = 'EI'
-    LogEI = 'LogEI'
+    EIGammaPrior = 'EI GammaPrior'
+    EIDimScaledPrior = 'EI DimScaledPrior'
+    EISaas = 'EI Saas'
+    LogEIGammaPrior = 'LogEI GammaPrior'
+    LogEIDimScaledPrior = 'LogEI DimScaledPrior'
     LCB = 'LCB'
-    SaasEI = 'SAAS+EI'
+    EXPERIMENTAL = 'experimental'
 
 
 class Optimizer:
@@ -40,14 +42,16 @@ class Optimizer:
             self.sampler = optuna.integration.BoTorchSampler(candidates_func=lcb)
         elif sampler_name == SamplerName.EIGammaPrior:
             self.sampler = optuna.integration.BoTorchSampler(candidates_func=ei_gammma_prior)
+        elif sampler_name == SamplerName.EIDimScaledPrior:
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=ei_dim_scaled_prior)
+        elif sampler_name == SamplerName.EISaas:
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=ei_saas)
         elif sampler_name == SamplerName.LogEIGammaPrior:
-            self.sampler = optuna.integration.BoTorchSampler(candidates_func=log_ei_gammma_prior)
-        elif sampler_name == SamplerName.EI:
-            self.sampler = optuna.integration.BoTorchSampler(candidates_func=ei)
-        elif sampler_name == SamplerName.LogEI:
-            self.sampler = optuna.integration.BoTorchSampler(candidates_func=log_ei)
-        elif sampler_name == SamplerName.SaasEI:
-            self.sampler = optuna.integration.BoTorchSampler(candidates_func=saas_ei)
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=logei_gammma_prior)
+        elif sampler_name == SamplerName.LogEIDimScaledPrior:
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=logei_dim_scaled_prior)
+        elif sampler_name == SamplerName.EXPERIMENTAL:
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=experimental)
         else:
             pass
 
@@ -70,8 +74,8 @@ class Optimizer:
             trial = optuna.trial.create_trial(params=params, distributions=distributions, value=y[0])
             self.study.add_trial(trial)
 
-    def create_study(self):
-        self.study = optuna.create_study(direction='minimize', sampler=self.sampler)
+    def create_study(self, direction):
+        self.study = optuna.create_study(direction=direction, sampler=self.sampler)
 
     def get_candidate(self, Xs: np.ndarray, ys: np.ndarray, distributions: dict):
         """候補点を取得.
@@ -96,6 +100,7 @@ class Optimizer:
 
 def run_optimization(
     func: TargetFunction,
+    direction: str,
     X_init: np.ndarray,
     y_init: np.ndarray,
     sampler_name: SamplerName,
@@ -108,7 +113,7 @@ def run_optimization(
 
     distributions = func.distributions
     for _ in tqdm(range(iters)):
-        sampler.create_study()
+        sampler.create_study(direction)
         new_X = sampler.get_candidate(Xs, ys, distributions)
         new_y = func.f(new_X)
         Xs = np.concatenate([Xs, new_X])
@@ -116,28 +121,39 @@ def run_optimization(
     return ys
 
 
-if __name__ == '__main__':
-    optuna.logging.disable_default_handler()
+def get_target_function(exp_name: str) -> TargetFunction:
+    """実験名に応じて, 目的関数を返す."""
+    if exp_name == 'StyblinskiTang8':
+        return StyblinskiTang(dim=8)
+    elif exp_name == 'StyblinskiTang40':
+        return StyblinskiTang(dim=40)
+    elif exp_name == 'Hartmann6':
+        return Hartmann6()
+    elif exp_name == 'Hartmann6Cat2':
+        return Hartmann6Cat2()
+    elif exp_name == 'FiveWellPotentioal':
+        return FiveWellPotentioal()
+    elif exp_name == 'SumOfSquares40':
+        return SumOfSquares(dim=40)
 
-    # 関数定義
-    # exp_name = 'StyblinskiTang8'
-    # f = StyblinskiTang(dim=8)
-    # exp_name = 'StyblinskiTang40'
-    # f = StyblinskiTang(dim=40)
-    # exp_name = 'Hartmann6'
-    # f = Hartmann6()
-    # exp_name = 'FiveWellPotentioal'
-    # f = FiveWellPotentioal()
-    exp_name = 'Hartmann6Cat2'
-    f = Hartmann6Cat2()
 
-    os.makedirs(f'exp_result/{exp_name}', exist_ok=True)
-    print(f'Run experiment: {exp_name}')
+def main():
+    """実験実行."""
+    #### 実験設定 #####
+    exp_name = 'StyblinskiTang40'
 
-    EXP_NUM = 10  # 実験回数
+    direction = 'minimize'
+    EXP_NUM = 3  # 実験回数
     SERCH_NUM = 100  # 観測回数
     INIT_NUM = 10  # 初期点の数
-    use_methods = [SamplerName.TPE, SamplerName.LogEIGammaPrior, SamplerName.LogEI]
+    use_methods = [SamplerName.EXPERIMENTAL, SamplerName.LogEIGammaPrior]
+    ##################
+
+    print(f'Run experiment: {exp_name}')
+    os.makedirs(f'exp_result/{exp_name}', exist_ok=True)
+
+    # 目的関数取得
+    f = get_target_function(exp_name)
 
     for j in range(1, EXP_NUM + 1):
         print(f'Start trial:{j}')
@@ -162,9 +178,14 @@ if __name__ == '__main__':
         # 各手法で探索
         for method in use_methods:
             print(f'Start optimization using {method.value}')
-            ys = run_optimization(f, X_init, y_init, method, SERCH_NUM)
+            ys = run_optimization(f, direction, X_init, y_init, method, SERCH_NUM)
             serch_fs[method.value] = ys.squeeze()
 
         # 探索結果を格納
         df = pl.DataFrame(serch_fs)
         df.write_csv(f'exp_result/{exp_name}/run_{j}.csv')
+
+
+if __name__ == '__main__':
+    optuna.logging.disable_default_handler()
+    main()
