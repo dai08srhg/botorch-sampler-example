@@ -13,12 +13,12 @@ If omitted, it is determined automatically based on the number of objectives. If
 # candidates_func
 以下の`candidates_func`を実装
 - Single Objective
-    - qEI (with Gamma Prior)
-    - qLogEI (with Gamma Prior)
-    - qEI
-    - qLogEI
+    - qEI (Gamma Prior)
+    - qEI (Dim-scale lognormal Prior)
+    - qEI (SAAS)
+    - qLogEI (Gamma Prior)
+    - qLogEI (Dim-scale lognormal Prior)
     - LCB
-    - SAAS + EI
     - Thompson Sampling
 - Multi Objective
     - qEHVI
@@ -26,10 +26,8 @@ If omitted, it is determined automatically based on the number of objectives. If
 
 # Remarks
 - Use BoTorch==0.12.0
-    - 高次元BOの手法として，VanilaBO[[Carl Hvarfner, et al., 2024](https://arxiv.org/abs/2402.02229)]が提案されているが，BoTorchではv0.12.0からデフォルトになっている．([release v0.12.0](https://github.com/pytorch/botorch/releases/tag/v0.12.0))
-    - "with Gamma Prior"でないものは，デフォルトのdimension-scaled log-normal hyperparameter priorsを利用
-- 指定しない場合はqEIもしくはqEHVIが利用されると記載されているが，実際にはqLogEI, qLogEHVIが利用されている模様．
-- SAASBOはfittingにNUTS Samplerを利用しており，計算量がO(N^3)なので実行速度が遅い．
+    - 高次元BOの手法として，Dim-scale lognormal Prior[[Carl Hvarfner, et al., 2024](https://arxiv.org/abs/2402.02229)]が提案されているが，BoTorchではv0.12.0からデフォルトになっている．([release v0.12.0](https://github.com/pytorch/botorch/releases/tag/v0.12.0))
+- `candidates_func`を指定しない場合はqEIもしくはqEHVIが利用されると記載されているが，実際にはqLogEI, qLogEHVIが利用されている模様.
 
 # Sample
 Build image
