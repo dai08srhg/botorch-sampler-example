@@ -4,7 +4,7 @@ import numpy as np
 import polars as pl
 from enum import Enum
 from tqdm import tqdm
-from test_functions.single_objective import Hartmann6, StyblinskiTang, FiveWellPotentioal, Hartmann6Cat2, SumOfSquares
+from test_functions.single_objective import Hartmann6, StyblinskiTang, FiveWellPotentioal, Hartmann6Cat2, SumOfSquares, SumOfDiffSquares
 from candidates_funcs.single_objective_candidates_func import (
     ei_gammma_prior,
     ei_dim_scaled_prior,
@@ -13,6 +13,7 @@ from candidates_funcs.single_objective_candidates_func import (
     lcb,
     ei_saas,
     experimental,
+    thompson_sampling
 )
 
 
@@ -29,6 +30,7 @@ class SamplerName(str, Enum):
     LogEIGammaPrior = 'LogEI GammaPrior'
     LogEIDimScaledPrior = 'LogEI DimScaledPrior'
     LCB = 'LCB'
+    ThompsonSampling = 'thompson sampling'
     EXPERIMENTAL = 'experimental'
 
 
@@ -50,6 +52,8 @@ class Optimizer:
             self.sampler = optuna.integration.BoTorchSampler(candidates_func=logei_gammma_prior)
         elif sampler_name == SamplerName.LogEIDimScaledPrior:
             self.sampler = optuna.integration.BoTorchSampler(candidates_func=logei_dim_scaled_prior)
+        elif sampler_name == SamplerName.ThompsonSampling:
+            self.sampler = optuna.integration.BoTorchSampler(candidates_func=thompson_sampling)
         elif sampler_name == SamplerName.EXPERIMENTAL:
             self.sampler = optuna.integration.BoTorchSampler(candidates_func=experimental)
         else:
@@ -133,6 +137,8 @@ def get_target_function(exp_name: str) -> TargetFunction:
         return Hartmann6Cat2()
     elif exp_name == 'FiveWellPotentioal':
         return FiveWellPotentioal()
+    elif exp_name == 'SumOfDiffSquares40':
+        return SumOfDiffSquares(dim=40)
     elif exp_name == 'SumOfSquares40':
         return SumOfSquares(dim=40)
 
@@ -140,13 +146,14 @@ def get_target_function(exp_name: str) -> TargetFunction:
 def main():
     """実験実行."""
     #### 実験設定 #####
-    exp_name = 'StyblinskiTang40'
+    exp_name = 'SumOfSquares40'
 
     direction = 'minimize'
     EXP_NUM = 3  # 実験回数
     SERCH_NUM = 100  # 観測回数
     INIT_NUM = 10  # 初期点の数
-    use_methods = [SamplerName.EXPERIMENTAL, SamplerName.LogEIGammaPrior]
+    # use_methods = [SamplerName.EXPERIMENTAL]
+    use_methods = [SamplerName.EIGammaPrior, SamplerName.EIDimScaledPrior, SamplerName.LogEIGammaPrior, SamplerName.LogEIDimScaledPrior]
     ##################
 
     print(f'Run experiment: {exp_name}')

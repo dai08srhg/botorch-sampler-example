@@ -235,13 +235,15 @@ class Ackley:
     """ """
 
 
-class SumOfSquares:
+class SumOfDiffSquares:
     """f = sum (x_i-r_i)^2 ."""
 
-    def __init__(self, dim=3, sd=0):
+    def __init__(self, dim=3, sd=0, r=None):
         self.dim = dim
         self.distributions = {f'x{d}': FloatDistribution(0.0, 1.0) for d in range(dim)}
-        self.r = np.random.uniform(0, 1, dim)
+        if r is None:
+            r = np.random.uniform(0, 1, dim)
+        self.r = r
 
     def f(self, xx: np.ndarray):
         """f.
@@ -261,4 +263,34 @@ class SumOfSquares:
     def random_x(self):
         """."""
         x = np.random.uniform(low=0.0, high=1.0, size=self.dim)
+        return x.reshape(1, x.shape[0])
+
+
+class SumOfSquares:
+    """f = sum i*(x_i)^2 ."""
+
+    def __init__(self, dim=3, sd=0):
+        self.dim = dim
+        self.distributions = {f'x{d}': FloatDistribution(-10.0, 10.0) for d in range(dim)}
+
+    def f(self, xx: np.ndarray):
+        """f.
+
+        Args:
+            xx (np.ndarray): 入力. xx.shape=(1, x_dim)
+
+        Returns:
+            np.ndarray: 出力. shape=(1, 1)
+
+        """
+        if xx.shape != (1, self.dim):
+            raise InputError(f'入力次元エラー. shape=(1, {self.dim}) is required')
+        xx_ = np.squeeze(xx)
+        xx_square = xx_**2
+        i_s = np.array(list(range(1, self.dim+1)))
+        return np.sum((i_s * xx_square) ** 2).reshape(1, 1)
+
+    def random_x(self):
+        """."""
+        x = np.random.uniform(low=-10.0, high=10.0, size=self.dim)
         return x.reshape(1, x.shape[0])
