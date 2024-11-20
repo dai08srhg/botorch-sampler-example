@@ -15,6 +15,7 @@ from botorch.models.utils.gpytorch_modules import (
 from botorch.acquisition.monte_carlo import qExpectedImprovement
 from botorch.acquisition.analytic import ExpectedImprovement, LogExpectedImprovement
 from botorch.acquisition.logei import qLogExpectedImprovement
+from botorch.acquisition.thompson_sampling import PathwiseThompsonSampling
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from gpytorch.priors.torch_priors import GammaPrior, LogNormalPrior
@@ -317,12 +318,26 @@ def ei_saas(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, p
 def thompson_sampling(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, bounds, pending_x):
     """トンプソンサンプリング."""
     train_x = normalize(train_x, bounds=bounds)
-    model = SingleTaskGP(train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)))
-
+    ard_num_dims = train_x.shape[-1]
+    lengthscale_prior = LogNormalPrior(loc=SQRT2 + log(ard_num_dims) * 0.5, scale=SQRT3)
+    covar_module = ScaleKernel(
+        base_kernel=MaternKernel(
+            nu=2.5,
+            ard_num_dims=ard_num_dims,
+            batch_shape=None,
+            lengthscale_prior=lengthscale_prior,
+            lengthscale_constraint=GreaterThan(2.500e-02),
+        ),
+        batch_shape=None,
+        outputscale_prior=GammaPrior(2, 0.15),
+    )
+    model = SingleTaskGP(
+        train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
+    )
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     fit_gpytorch_mll(mll)
 
-    acq_func = ThompsonSampling(model=model, bounds=bounds)
+    acq_func = PathwiseThompsonSampling(model=model)
 
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
@@ -345,40 +360,52 @@ def experimental(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, boun
     """実験用."""
     train_x = normalize(train_x, bounds=bounds)
     ard_num_dims = train_x.shape[-1]
+    lengthscale_prior = LogNormalPrior(loc=SQRT2 + log(ard_num_dims) * 0.5, scale=SQRT3)
     covar_module = ScaleKernel(
         base_kernel=MaternKernel(
             nu=2.5,
             ard_num_dims=ard_num_dims,
             batch_shape=None,
-            lengthscale_prior=GammaPrior(3.0, 6.0),
+            lengthscale_prior=lengthscale_prior,
+            lengthscale_constraint=GreaterThan(2.500e-02),
         ),
         batch_shape=None,
         outputscale_prior=GammaPrior(2, 0.15),
     )
-    if train_x.shape[0] < 50:
-        model = SingleTaskGP(
-            train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
-        )
-        mll = ExactMarginalLogLikelihood(model.likelihood, model)
-        fit_gpytorch_mll(mll)
-    else:
-        # サンプルが増えたらスパース近似
-        model = SingleTaskVariationalGP(
-            train_x,
-            train_obj,
-            learn_inducing_points=True,
-            outcome_transform=Standardize(m=train_obj.size(-1)),
-            covar_module=covar_module,
-        )
-        mll = VariationalELBO(model.likelihood, model.model, num_data=train_x.shape[0])
-        fit_gpytorch_mll(mll)
+    model = SingleTaskGP(
+        train_x, train_obj, outcome_transform=Standardize(m=train_obj.size(-1)), covar_module=covar_module
+    )
 
-    sampler = SobolQMCNormalSampler(sample_shape=torch.Size([128]))
-    acq_func = qLogExpectedImprovement(model=model, best_f=train_obj.max(), sampler=sampler)
+    mll = ExactMarginalLogLikelihood(model.likelihood, model)
+    fit_gpytorch_mll(mll)
 
+    # まずはトンプソンサンプリングで候補点算出
+    acq_func = PathwiseThompsonSampling(model=model)
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
+    ts_candidates, _ = optimize_acqf(
+        acq_function=acq_func,
+        bounds=standard_bounds,
+        q=1,
+        num_restarts=10,
+        raw_samples=512,
+        options={'batch_limit': 5, 'maxiter': 200},
+        sequential=True,
+    )
+    ts_candidates = ts_candidates.detach().numpy()
 
+    # length_scaleの下位5個を取得
+    length_scale = model.covar_module.base_kernel.lengthscale.detach()
+    sorted_indices = torch.argsort(length_scale)
+    fixed_indices = sorted_indices[0][-5:]
+
+    # 下位5個を固定し，残りをEIで探索
+    equality_constraints = []
+    for i in fixed_indices:
+        v = float(ts_candidates[0][i])
+        equality_constraints.append((torch.tensor([i]).int(), torch.tensor([1.0]).to(torch.float64), v))
+    sampler = SobolQMCNormalSampler(sample_shape=torch.Size([128]))
+    acq_func = qExpectedImprovement(model=model, best_f=train_obj.max(), sampler=sampler)
     candidates, _ = optimize_acqf(
         acq_function=acq_func,
         bounds=standard_bounds,
@@ -386,6 +413,7 @@ def experimental(train_x: torch.Tensor, train_obj: torch.Tensor, train_con, boun
         num_restarts=10,
         raw_samples=512,
         options={'batch_limit': 5, 'maxiter': 200},
+        equality_constraints=equality_constraints,
         sequential=True,
     )
     candidates = unnormalize(candidates.detach(), bounds=bounds)

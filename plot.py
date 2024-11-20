@@ -17,19 +17,20 @@ def get_best_ys(ys):
 
 
 if __name__ == '__main__':
-    exp_name = 'StyblinskiTang40'
+    exp_name = 'SumOfSquares40'
 
     col2best_ys = {}
 
     # 全施行プロット
     fig = plt.figure(figsize=(25, 6))
-    fig.suptitle(f'{exp_name}')
+    # fig.suptitle(f'{exp_name}')
     for j in range(1, 4):
         df = pl.read_csv(f'exp_result/{exp_name}/run_{j}.csv')
         for col in df.columns:
             ys = df[col].to_list()
             ys = ys[0:]
             plt.subplot(1, 3, j)
+            plt.title(f'Trial:{j}')
             plt.scatter(range(len(ys)), ys, marker='.', label=f'{col} sample')
 
             best_ys = get_best_ys(ys)
